@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+data/raw/*
+!data/raw/README.md
+data/merged/
+models/*.pt
+models/inr_counter*/
+yolov8n.pt
+runs/
+*.mp4
+*.avi
+.venv/

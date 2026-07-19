@@ -102,6 +102,14 @@ and inspection output are excluded through `.gitignore`. Keep these assets out
 of Git; use a release asset or model/data storage service when they need to be
 shared.
 
+## Development
+
+Run a quick syntax check after changing the counter or tracker:
+
+```bash
+python -m py_compile live_count.py utils/tracker.py
+```
+
 ## License
 
 This project is released under the [MIT License](LICENSE).

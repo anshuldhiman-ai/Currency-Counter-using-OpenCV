@@ -1,77 +1,115 @@
-# INR Cash Counter — Live Denomination Counting + Fake Note Detection
+# INR Cash Counter
 
-Real-time Indian currency counting system using YOLOv8, with audio feedback
-(designed to be usable by visually impaired users) and a fake-note sanity check.
+A real-time Indian currency counter using YOLOv8, a webcam, and offline
+text-to-speech. It detects notes, draws denomination-coloured detection boxes,
+and maintains a live receipt and running total.
+
+> The fake-note check is only a basic visual heuristic. It is not suitable for
+> authentication, banking, or any decision where counterfeit detection matters.
+
+## Supported denominations
+
+`₹5`, `₹10`, `₹20`, `₹50`, `₹100`, `₹200`, and `₹500`.
+
+Each detected note uses a matching visual overlay colour: green (₹5), brown
+(₹10), yellow-green (₹20), turquoise (₹50), lavender (₹100), orange (₹200),
+and stone grey (₹500).
 
 ## Features
-- Live webcam detection of INR notes (₹10, ₹20, ₹50, ₹100, ₹200, ₹500, ₹2000)
-- Manual-trigger counting (press SPACE or say "next") to avoid double-counting
-- Running total announced via text-to-speech (offline, works without internet)
-- Basic fake-note screening (color histogram + security-thread heuristic;
-  upgradeable to a trained CNN once you have a real/fake dataset)
-- End-of-session summary: breakdown by denomination + grand total
 
-## Project structure
-```
-inr-cash-counter/
-├── data/
-│   ├── raw/              <- put your downloaded Roboflow datasets here
-│   ├── merged/            <- output of merge_datasets.py
-│   └── data.yaml           <- YOLO dataset config (auto-generated)
-├── models/                 <- trained weights land here (best.pt)
-├── utils/
-│   ├── tts_engine.py        <- text-to-speech wrapper
-│   └── fake_check.py       <- fake-note heuristic / classifier
-├── merge_datasets.py       <- combine multiple Roboflow exports into one
-├── train.py                 <- train YOLOv8 on the merged dataset
-├── live_count.py             <- MAIN APP: live camera counting + TTS
-└── requirements.txt
-```
+- Live camera detection with YOLOv8 PyTorch or ONNX models.
+- Three count modes: automatic, manual single-note, and manual multi-note.
+- IoU tracking and time-based verification to prevent duplicate counts.
+- Live per-denomination receipt and total, with offline speech feedback.
+- ONNX Runtime support with QNN NPU, DirectML GPU, and CPU fallback.
+- Optional fake-note heuristic that flags suspicious notes for review.
 
 ## Setup
 
+Requires Python 3.10+ and a webcam.
+
 ```bash
+python -m venv .venv
+.venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-## Step 1 — Get data
-Download these from Roboflow Universe (export format: **YOLOv8**, zip):
-- "Indian Currency Detection" by Rajshree (largest, ~2266 images)
-- "Indian Currency Detector" by Jay Kumar (covers all 7 denominations)
-- (optional) any real/fake dataset for the fake-note classifier upgrade
+For ONNX inference, also install a suitable ONNX Runtime package for your
+hardware, for example `onnxruntime` (CPU) or `onnxruntime-directml` (GPU).
 
-Unzip each into `data/raw/<dataset_name>/` — each folder should contain
-`train/`, `valid/`, `test/` subfolders with `images/` and `labels/`, plus a
-`data.yaml`.
+## Run the counter
 
-## Step 2 — Merge datasets
+Place your trained YOLO weights at `models/best.pt`, then run:
+
 ```bash
-python merge_datasets.py
+python live_count.py --model models/best.pt --mode auto
 ```
-This walks every folder in `data/raw/`, remaps class names to a single
-canonical label set, and writes everything into `data/merged/` with one
-combined `data.yaml`.
 
-## Step 3 — Train
+Useful options:
+
 ```bash
-python train.py
-```
-Fine-tunes YOLOv8n (nano — fast, good for real-time on modest hardware) on
-the merged dataset. Swap to `yolov8s.pt` in train.py for better accuracy if
-you have a GPU.
+# Choose a camera and require a note to remain visible for 2 seconds.
+python live_count.py --cam 0 --mode auto --verify_time 2
 
-## Step 4 — Run live counting
+# Manually commit all verified visible notes with Space.
+python live_count.py --mode multi
+
+# Use a converted ONNX model.
+python live_count.py --model models/best.onnx --mode auto
+```
+
+## Controls
+
+| Key | Action |
+| --- | --- |
+| `M` | Cycle modes: Single → Multi → Auto |
+| `Space` | Count the best note in Single mode; commit verified notes in Multi mode |
+| `C` | Clear the session receipt and total |
+| `P` | Pause or resume tracking |
+| `R` | Speak the current total |
+| `+` / `-` | Adjust detection confidence |
+| `Q` / `Esc` | Close the counter and announce the session summary |
+
+In Auto mode, a note is counted once after it has been consistently detected
+for the configured verification time (3 seconds by default). Move a counted
+note out of view before presenting the next note.
+
+## Train a model
+
+1. Download YOLOv8-format Indian-currency datasets into `data/raw/`.
+2. Merge and normalize their classes:
+
+   ```bash
+   python merge_datasets.py
+   ```
+
+3. Train the detector:
+
+   ```bash
+   python train.py
+   ```
+
+## Export ONNX
+
 ```bash
-python live_count.py
+python export_onnx.py --model models/best.pt --imgsz 640
 ```
-- Point the camera at a note
-- Press **SPACE** to confirm/count it (prevents double-counting)
-- Press **R** to hear the running total
-- Press **Q** to end session and hear the final summary
 
-## Notes on the fake-note check
-The included heuristic (`utils/fake_check.py`) is a placeholder — it checks
-color distribution and looks for the security thread as a bright vertical
-line. It is NOT forensic-grade. To make it robust, collect a real-vs-fake
-dataset per denomination and train a small CNN classifier (see comments in
-that file for how to swap it in).
+## Repository hygiene
+
+Trained weights, datasets, exported models, videos, local virtual environments,
+and inspection output are excluded through `.gitignore`. Keep these assets out
+of Git; use a release asset or model/data storage service when they need to be
+shared.
+
+## Development
+
+Run a quick syntax check after changing the counter or tracker:
+
+```bash
+python -m py_compile live_count.py utils/tracker.py
+```
+
+## License
+
+This project is released under the [MIT License](LICENSE).

@@ -1,12 +1,30 @@
+# Python cache
 __pycache__/
 *.pyc
+
+# Local Virtual Environments
+.venv/
+env/
+venv/
+
+# Large Datasets and ZIPs (Exceeds GitHub's 100MB limit)
 data/raw/*
 !data/raw/README.md
 data/merged/
-models/*.pt
-models/inr_counter*/
-yolov8n.pt
+data/merged.zip
+crops_by_class/
+crops_by_class.zip
+
+# Model weights and exports (Exceeds GitHub's 100MB limit)
+*.pt
+*.onnx
+models/
 runs/
+
+# Large video outputs
 *.mp4
 *.avi
-.venv/
+*.mov
+
+# Local inspection/debug image exports
+inspect_out/

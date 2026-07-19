@@ -1,0 +1,19 @@
+Put your downloaded Roboflow dataset exports here, one subfolder per dataset.
+
+Example after downloading two datasets:
+
+data/raw/
+├── rajshree_indian_currency/
+│   ├── train/images/...  train/labels/...
+│   ├── valid/images/...  valid/labels/...
+│   ├── test/images/...   test/labels/...
+│   └── data.yaml
+└── jaykumar_currency_detector/
+    ├── train/images/...  train/labels/...
+    ├── valid/images/...  valid/labels/...
+    ├── test/images/...   test/labels/...
+    └── data.yaml
+
+Each dataset's data.yaml (from Roboflow) lists its own class names/order —
+merge_datasets.py reads these and remaps every label file to the canonical
+class list defined in merge_datasets.py's CANONICAL_CLASSES.

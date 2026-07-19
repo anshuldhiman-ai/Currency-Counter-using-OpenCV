@@ -9,6 +9,7 @@ Usage:
 """
 
 import argparse
+import os
 import torch
 from ultralytics import YOLO
 
@@ -17,20 +18,26 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--data", default="data/merged/data.yaml",
                          help="path to merged dataset yaml")
-    parser.add_argument("--model", default="yolov8n.pt",
-                         help="base model to fine-tune (n=fastest, s/m=more accurate)")
+    parser.add_argument("--model", default="yolov8x.pt",
+                         help="base model to fine-tune (n=fastest, s/m/x=more accurate)")
     parser.add_argument("--epochs", type=int, default=80)
     parser.add_argument("--imgsz", type=int, default=640)
-    parser.add_argument("--batch", type=int, default=16)
+    parser.add_argument("--batch", type=int, default=4)
     parser.add_argument("--workers", type=int, default=0,
-                         help="data loader workers for reduced CPU usage")
+                         help="data loader workers for reduced CPU usage (0=main process only)")
     parser.add_argument("--threads", type=int, default=1,
                          help="torch intra-op thread count for reduced CPU usage")
     parser.add_argument("--project", default="models")
     parser.add_argument("--name", default="inr_counter")
     args = parser.parse_args()
 
+    # Limit CPU usage to prevent overheating
+    os.environ["OMP_NUM_THREADS"] = str(args.threads)
+    os.environ["MKL_NUM_THREADS"] = str(args.threads)
+    os.environ["NUMEXPR_NUM_THREADS"] = str(args.threads)
     torch.set_num_threads(args.threads)
+    if hasattr(torch, 'set_num_interop_threads'):
+        torch.set_num_interop_threads(args.threads)
     model = YOLO(args.model)
 
     model.train(

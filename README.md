@@ -1,83 +1,180 @@
-# INR Cash Counter
+# INR Cash Counter — Real-Time Indian Currency Detection
 
-A real-time Indian currency counter using YOLOv8, a webcam, and offline
-text-to-speech. It detects notes, draws denomination-coloured detection boxes,
-and maintains a live receipt and running total.
+[![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![OpenCV](https://img.shields.io/badge/OpenCV-Live%20Vision-5C3EE8?logo=opencv&logoColor=white)](https://opencv.org/)
+[![YOLOv8](https://img.shields.io/badge/YOLOv8-Object%20Detection-111F68)](https://docs.ultralytics.com/models/yolov8/)
+[![ONNX Runtime](https://img.shields.io/badge/ONNX%20Runtime-NPU%20%7C%20GPU%20%7C%20CPU-005CED?logo=onnx&logoColor=white)](https://onnxruntime.ai/)
+[![License](https://img.shields.io/badge/License-MIT-lightgrey)](LICENSE)
 
-> The fake-note check is only a basic visual heuristic. It is not suitable for
-> authentication, banking, or any decision where counterfeit detection matters.
+> **INR Cash Counter** turns a webcam into a live Indian-note counter. A YOLOv8
+> detector identifies visible notes, tracks them across frames, verifies them
+> before counting, and announces a running total through offline speech.
+> Detection boxes use the distinctive colour of the detected denomination for
+> immediate visual recognition.
 
-## Supported denominations
+---
 
-`₹5`, `₹10`, `₹20`, `₹50`, `₹100`, `₹200`, and `₹500`.
+## Table of Contents
 
-Each detected note uses a matching visual overlay colour: green (₹5), brown
-(₹10), yellow-green (₹20), turquoise (₹50), lavender (₹100), orange (₹200),
-and stone grey (₹500).
+- [Why INR Cash Counter](#-why-inr-cash-counter)
+- [Feature Overview](#-feature-overview)
+- [Detection Pipeline](#-detection-pipeline)
+- [Engineering Highlights](#-engineering-highlights)
+- [Tech Stack](#-tech-stack)
+- [Quick Start](#-quick-start)
+- [Controls & Count Modes](#-controls--count-modes)
+- [Train and Export a Model](#-train-and-export-a-model)
+- [Project Structure](#-project-structure)
+- [Accuracy & Safety](#-accuracy--safety)
+- [License](#-license)
 
-## Features
+---
 
-- Live camera detection with YOLOv8 PyTorch or ONNX models.
-- Three count modes: automatic, manual single-note, and manual multi-note.
-- IoU tracking and time-based verification to prevent duplicate counts.
-- Live per-denomination receipt and total, with offline speech feedback.
-- ONNX Runtime support with QNN NPU, DirectML GPU, and CPU fallback.
-- Optional fake-note heuristic that flags suspicious notes for review.
+## ✨ Why INR Cash Counter
 
-## Setup
+| | |
+|---|---|
+| 🎥 **Live, hands-free counting** | Show a note to the camera and Auto mode counts it only after stable verification—no clicking required. |
+| 🎨 **Denomination-coloured overlays** | Each box matches the note it identifies: green ₹5, brown ₹10, yellow-green ₹20, turquoise ₹50, lavender ₹100, orange ₹200, and stone-grey ₹500. |
+| 🧾 **Receipt-style session view** | Watch per-denomination quantities, subtotals, total notes, and the grand total update in real time. |
+| 🔊 **Accessible by design** | Offline text-to-speech announces counted notes and running totals, making the workflow practical without looking at the screen. |
+| ⚡ **Hardware-aware inference** | Run standard PyTorch YOLOv8 or export to ONNX Runtime, which prioritises QNN NPU, DirectML GPU, then CPU. |
 
-Requires Python 3.10+ and a webcam.
+---
+
+## 🎯 Feature Overview
+
+### Detect & Count
+
+- **Seven INR denominations** — ₹5, ₹10, ₹20, ₹50, ₹100, ₹200, and ₹500.
+- **Three workflows** — automatic stable-note counting, manual single-note confirmation, and manual multi-note batch commit.
+- **IoU note tracking** — follows multiple visible notes across fresh inference results and prevents a stable note from being counted twice.
+- **Time-based verification** — a note must remain visible for a configurable period (3 seconds by default) before Auto mode counts it.
+- **Adjustable confidence** — tune the live confidence threshold using `+` and `-`.
+
+### Feedback & Review
+
+- **Live colour-coded HUD** — detection brackets, tags, and receipt dots match the denomination being detected.
+- **Offline speech feedback** — announces individual notes, batches, the running total, and the final session summary.
+- **Session controls** — pause tracking, reset the receipt, change mode, and hear the total without restarting.
+- **Suspicious-note flagging** — an optional visual heuristic can flag a note for manual review during manual counts.
+
+---
+
+## 🏗 Detection Pipeline
+
+```mermaid
+flowchart LR
+    Camera[Webcam frame] --> Detector[YOLOv8 / ONNX Runtime]
+    Detector --> Filter[Confidence filter]
+    Filter --> Tracker[IoU note tracker]
+    Tracker --> Verify[Frame + time verification]
+    Verify --> Mode{Count mode}
+    Mode -->|Auto| Receipt[Session receipt & total]
+    Mode -->|Single / Multi| Confirm[Space-key confirmation]
+    Confirm --> Receipt
+    Receipt --> HUD[Colour-coded HUD]
+    Receipt --> Speech[Offline text-to-speech]
+```
+
+---
+
+## 🔬 Engineering Highlights
+
+### 1 · Fresh-inference tracking
+
+The tracker updates only when a new detector result arrives, rather than
+reusing a stale bounding box for every camera frame. This makes the
+three-frame stability check meaningful and keeps multi-note commits reliable.
+
+### 2 · Stable counting without duplicate totals
+
+Each tracked note has a unique ID, bounding box, time first seen, active-frame
+count, and `counted` state. Auto mode counts a note once after it satisfies the
+frame and time checks; Multi mode commits only qualifying, uncounted notes.
+
+### 3 · Portable acceleration path
+
+The counter supports `.pt` weights directly through Ultralytics and `.onnx`
+exports through ONNX Runtime. ONNX inference attempts Qualcomm QNN NPU first,
+then DirectML GPU, and uses CPU as a reliable fallback.
+
+---
+
+## 🧰 Tech Stack
+
+| Layer | Technologies |
+|---|---|
+| **Detection** | Ultralytics YOLOv8 · PyTorch · ONNX Runtime |
+| **Vision** | OpenCV · NumPy |
+| **Tracking** | Lightweight IoU tracker implemented in Python |
+| **Feedback** | `pyttsx3` offline text-to-speech |
+| **Training** | YOLOv8 dataset merge, class mapping, training, and ONNX export scripts |
+
+---
+
+## 🚀 Quick Start
+
+**Prerequisites:** Python 3.10+ and a connected webcam.
 
 ```bash
+git clone https://github.com/anshuldhiman-ai/Currency-Counter-using-OpenCV.git
+cd Currency-Counter-using-OpenCV
+
 python -m venv .venv
 .venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-For ONNX inference, also install a suitable ONNX Runtime package for your
-hardware, for example `onnxruntime` (CPU) or `onnxruntime-directml` (GPU).
-
-## Run the counter
-
-Place your trained YOLO weights at `models/best.pt`, then run:
+Place your trained model at `models/best.pt`, then start automatic counting:
 
 ```bash
 python live_count.py --model models/best.pt --mode auto
 ```
 
-Useful options:
+> 💡 Model weights are deliberately excluded from Git because they are large
+> binary files. Download the model separately or train one using the steps
+> below, then place it under `models/`.
+
+### Useful run commands
 
 ```bash
-# Choose a camera and require a note to remain visible for 2 seconds.
-python live_count.py --cam 0 --mode auto --verify_time 2
+# Use camera 1 and verify a note for 2 seconds before auto-counting it.
+python live_count.py --cam 1 --mode auto --verify_time 2
 
-# Manually commit all verified visible notes with Space.
+# Manually commit every verified visible note with Space.
 python live_count.py --mode multi
 
-# Use a converted ONNX model.
+# Run a converted ONNX model.
 python live_count.py --model models/best.onnx --mode auto
 ```
 
-## Controls
+---
+
+## ⌨️ Controls & Count Modes
 
 | Key | Action |
-| --- | --- |
-| `M` | Cycle modes: Single → Multi → Auto |
-| `Space` | Count the best note in Single mode; commit verified notes in Multi mode |
-| `C` | Clear the session receipt and total |
+|---|---|
+| `M` | Cycle modes: **Single → Multi → Auto** |
+| `Space` | Count best visible note in Single; commit verified notes in Multi |
+| `C` | Clear the receipt and total |
 | `P` | Pause or resume tracking |
-| `R` | Speak the current total |
-| `+` / `-` | Adjust detection confidence |
-| `Q` / `Esc` | Close the counter and announce the session summary |
+| `R` | Speak the running total |
+| `+` / `-` | Increase or decrease confidence threshold |
+| `Q` / `Esc` | End session and announce the summary |
 
-In Auto mode, a note is counted once after it has been consistently detected
-for the configured verification time (3 seconds by default). Move a counted
-note out of view before presenting the next note.
+| Mode | Behaviour |
+|---|---|
+| **Auto** | Counts each stable note once after the verification period. Move a counted note away before showing the next one. |
+| **Multi** | Hold several notes in view until verified, then press `Space` to commit the batch. |
+| **Single** | Press `Space` to count the currently highest-confidence note. |
 
-## Train a model
+---
 
-1. Download YOLOv8-format Indian-currency datasets into `data/raw/`.
-2. Merge and normalize their classes:
+## 🧠 Train and Export a Model
+
+1. Place YOLOv8-format datasets in `data/raw/<dataset-name>/`.
+2. Combine datasets and normalise their class labels:
 
    ```bash
    python merge_datasets.py
@@ -89,27 +186,51 @@ note out of view before presenting the next note.
    python train.py
    ```
 
-## Export ONNX
+4. Export trained weights to ONNX when needed:
 
-```bash
-python export_onnx.py --model models/best.pt --imgsz 640
+   ```bash
+   python export_onnx.py --model models/best.pt --imgsz 640
+   ```
+
+---
+
+## 📁 Project Structure
+
+```text
+Currency-Counter-using-OpenCV/
+├── live_count.py            # Main webcam counter, HUD, controls, and session state
+├── train.py                 # YOLOv8 training entry point
+├── merge_datasets.py        # Dataset merge and class normalisation
+├── export_onnx.py           # PyTorch-to-ONNX export utility
+├── convert_to_onnx.py       # Alternative ONNX conversion utility
+├── requirements.txt         # Python dependencies
+├── data/
+│   └── raw/README.md        # Dataset placement guidance
+├── models/                  # Local trained weights (ignored by Git)
+└── utils/
+    ├── tracker.py           # IoU tracking and stability verification
+    ├── onnx_runner.py       # ONNX Runtime inference and provider fallback
+    ├── fake_check.py        # Basic suspicious-note heuristic
+    └── tts_engine.py        # Offline text-to-speech wrapper
 ```
 
-## Repository hygiene
+---
 
-Trained weights, datasets, exported models, videos, local virtual environments,
-and inspection output are excluded through `.gitignore`. Keep these assets out
-of Git; use a release asset or model/data storage service when they need to be
-shared.
+## ⚠️ Accuracy & Safety
 
-## Development
+- Detection accuracy depends on the quality, lighting, orientation, and class
+  coverage of the trained model. Validate it with your own notes and camera
+  setup before relying on totals.
+- The suspicious-note check is a simple image heuristic, **not** counterfeit
+  authentication. Never use it for banking, compliance, or high-stakes
+  financial decisions.
+- Treat the application as a counting assistant, not a replacement for manual
+  verification when handling cash professionally.
 
-Run a quick syntax check after changing the counter or tracker:
+---
 
-```bash
-python -m py_compile live_count.py utils/tracker.py
-```
+## 📄 License
 
-## License
+Released under the [MIT License](LICENSE) — free to use, modify, and distribute.
 
-This project is released under the [MIT License](LICENSE).
+<p align="center"><sub>Built to make everyday INR cash counting faster, clearer, and more accessible.</sub></p>

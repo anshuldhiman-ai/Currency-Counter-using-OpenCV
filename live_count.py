@@ -37,6 +37,14 @@ from utils.onnx_runner import ONNXRunner
 # Updated denominations list: added "5" and removed "2000" as requested
 DENOMINATIONS = ["5", "10", "20", "50", "100", "200", "500"]
 
+# Per-denomination minimum confidence, applied ON TOP of the global --conf
+# threshold. When a note is unclear the detector tends to emit a low-confidence
+# Rs 5 guess, which inflated the running total, so Rs 5 must clear a higher bar
+# before it is accepted. Denominations not listed use the global threshold only.
+MIN_CONF_PER_DENOM = {
+    "5": 0.60,
+}
+
 # Colour mapping in BGR for visual bounding boxes.  These values are sampled
 # from the dominant colours of the current Indian note series, so the overlay
 # immediately communicates the denomination being detected.
@@ -129,6 +137,8 @@ def process_detection_async(frame, model, is_onnx, conf_threshold, detection_loc
             raw_dets = model.predict(frame, conf_threshold=conf_threshold, iou_threshold=iou_threshold)
             detections = []
             for denom, conf, xyxy in raw_dets:
+                if conf < MIN_CONF_PER_DENOM.get(denom, 0.0):
+                    continue
                 detections.append((denom, conf, xyxy))
         else:
             # PyTorch inference
@@ -142,14 +152,16 @@ def process_detection_async(frame, model, is_onnx, conf_threshold, detection_loc
                     if conf >= conf_threshold:
                         cls_idx = int(boxes.cls[i])
                         denom = result.names[cls_idx]
+                        if conf < MIN_CONF_PER_DENOM.get(denom, 0.0):
+                            continue
                         xyxy = boxes.xyxy[i].cpu().numpy().astype(int)
                         detections.append((denom, conf, xyxy))
-        
+
         with detection_lock:
             detection_results["items"] = detections
             detection_results["version"] += 1
     except Exception as e:
-        pass
+        print(f"[!] Detection thread error: {e}")
 
 
 def main():

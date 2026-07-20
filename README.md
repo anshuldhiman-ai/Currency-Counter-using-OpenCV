@@ -25,6 +25,7 @@
 - [Controls & Count Modes](#-controls--count-modes)
 - [Train and Export a Model](#-train-and-export-a-model)
 - [Project Structure](#-project-structure)
+- [Known Limitations](#-known-limitations)
 - [Accuracy & Safety](#-accuracy--safety)
 - [License](#-license)
 
@@ -212,6 +213,25 @@ Currency-Counter-using-OpenCV/
     ├── fake_check.py        # Basic suspicious-note heuristic
     └── tts_engine.py        # Offline text-to-speech wrapper
 ```
+
+---
+
+## 🚧 Known Limitations
+
+- **Class imbalance affects accuracy.** Detection quality depends heavily on how
+  many training examples exist for each denomination. Notes with fewer training
+  images (historically ₹200 and ₹500) are detected less reliably until the
+  dataset is rebalanced. Merge additional datasets and retrain to improve them.
+- **Note-design coverage matters.** The model only recognises note designs it was
+  trained on. A new-series design absent from the training data may be missed or
+  misclassified even if an older design of the same denomination works.
+- **Overlapping / stacked notes.** Each detected box counts as one note. Notes
+  that overlap or are fanned in a hand can hide each other, so heavily occluded
+  stacks may under-count. Show notes separated and non-overlapping for best
+  results.
+- **Low-confidence fallback.** When unsure, the detector can emit a low-confidence
+  guess. Tune the confidence threshold (`+` / `-`, or `--conf`) for your camera
+  and lighting to suppress spurious detections.
 
 ---
 

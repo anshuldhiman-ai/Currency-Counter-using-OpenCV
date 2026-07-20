@@ -16,7 +16,8 @@ data/merged/
 # Model weights and exports (Exceeds GitHub's 100MB limit)
 *.pt
 *.onnx
-models/
+models/*
+!models/README.md
 runs/
 
 # Base model weights downloaded from Ultralytics

@@ -11,9 +11,7 @@ venv/
 data/raw/*
 !data/raw/README.md
 data/merged/
-data/merged.zip
-crops_by_class/
-crops_by_class.zip
+*.zip
 
 # Model weights and exports (Exceeds GitHub's 100MB limit)
 *.pt
@@ -21,10 +19,24 @@ crops_by_class.zip
 models/
 runs/
 
-# Large video outputs
+# Base model weights downloaded from Ultralytics
+yolov8*.pt
+
+# Training run outputs
+runs/
+
+# Large video / image outputs
 *.mp4
 *.avi
 *.mov
 
-# Local inspection/debug image exports
+# Local inspection/debug artifacts
 inspect_out/
+crops_by_class/
+crops_by_class.zip
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

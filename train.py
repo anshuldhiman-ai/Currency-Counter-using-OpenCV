@@ -18,8 +18,8 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--data", default="data/merged/data.yaml",
                          help="path to merged dataset yaml")
-    parser.add_argument("--model", default="yolov8x.pt",
-                         help="base model to fine-tune (n=fastest, s/m/x=more accurate)")
+    parser.add_argument("--model", default="yolov8s.pt",
+                         help="base model to fine-tune (n=fastest, s=balanced, m/x=more accurate)")
     parser.add_argument("--epochs", type=int, default=80)
     parser.add_argument("--imgsz", type=int, default=640)
     parser.add_argument("--batch", type=int, default=4)

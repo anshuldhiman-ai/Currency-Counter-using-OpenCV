@@ -202,7 +202,6 @@ Currency-Counter-using-OpenCV/
 ├── train.py                 # YOLOv8 training entry point
 ├── merge_datasets.py        # Dataset merge and class normalisation
 ├── export_onnx.py           # PyTorch-to-ONNX export utility
-├── convert_to_onnx.py       # Alternative ONNX conversion utility
 ├── requirements.txt         # Python dependencies
 ├── data/
 │   └── raw/README.md        # Dataset placement guidance

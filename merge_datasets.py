@@ -50,6 +50,35 @@ DATASET_CLASS_INDEX_OVERRIDES = {
         5: "50",
         6: "5",
     },
+    # Jay Kumar dataset: separate front/back classes, both map to the same
+    # denomination. 2000-rupee classes (14, 15) are intentionally omitted so
+    # they get dropped during remap. Boosts the under-represented 20/200/500.
+    "Indian Currency Detector.v1i.yolov8": {
+        0: "50",    # fifty-back
+        1: "50",    # fifty-front
+        2: "5",     # five-back
+        3: "500",   # five-hundred-back
+        4: "500",   # five-hundred-front
+        5: "100",   # hundred-back
+        6: "100",   # hundred-front
+        7: "10",    # ten-back
+        8: "10",    # ten-front
+        9: "20",    # twenty-back
+        10: "20",   # twenty-front
+        11: "200",  # two-hundread-front (source typo)
+        12: "200",  # two-hundred-back
+        13: "200",  # two-hundred-front
+    },
+    # Project (mccsh) dataset: clean denomination classes. 2000 (index 6) is
+    # omitted so it drops during remap. Large and well-balanced.
+    "Currency detection.v2i.yolov8": {
+        0: "10",
+        1: "20",
+        2: "50",
+        3: "100",
+        4: "200",
+        5: "500",
+    },
 }
 
 

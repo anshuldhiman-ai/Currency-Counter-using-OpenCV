@@ -10,6 +10,10 @@ Controls:
     C      - Reset/clear current session counts
     P      - Pause/resume camera tracking
     R      - Speak the running total
+    G      - Toggle voice gender filter (Female -> Male -> All)
+    V      - Toggle TTS engine (Sarvam AI <-> Offline pyttsx3)
+    N      - Next Sarvam AI voice (38 verified working voices)
+    B      - Previous Sarvam AI voice
     +/-    - Increase/decrease confidence threshold by 0.05
     SPACE  - In SINGLE mode: count the highest confidence note
              In MULTI mode: batch-count all currently tracked notes at once
@@ -175,12 +179,12 @@ def main():
                          help="torch/cpu thread count for inference acceleration")
     parser.add_argument("--fps", type=int, default=30,
                          help="target frame rate of camera capture")
-    parser.add_argument("--detect_every", type=int, default=5,
+    parser.add_argument("--detect_every", type=int, default=2,
                          help="run inference every N frames to conserve CPU/NPU resources")
     parser.add_argument("--mode", type=str, default="auto",
                          choices=["single", "multi", "auto"],
                          help="single=manual confirm best, multi=manual batch, auto=automatic track/count")
-    parser.add_argument("--verify_time", type=float, default=3.0,
+    parser.add_argument("--verify_time", type=float, default=0.5,
                          help="seconds to verify note detection before counting (prevents flickering)")
     args = parser.parse_args()
 
@@ -210,7 +214,7 @@ def main():
         model = YOLO(args.model)
         hardware_backend = "PyTorch CPU/CUDA"
 
-    tts = TTSEngine()
+    tts = TTSEngine(mode="sarvam", voice="priya")
     state = SessionState()
     tracker = NoteTracker(
         iou_threshold=0.25,
@@ -248,7 +252,7 @@ def main():
     # Speech Queuing variables
     speech_queue = []
     last_speech_added_time = 0
-    SPEECH_COOLDOWN = 1.0  # seconds of silence before announcing the batch
+    SPEECH_COOLDOWN = 0.2  # seconds of silence before announcing the batch
     
     frame_count = 0
     
@@ -306,17 +310,11 @@ def main():
                 any_suspicious = any(not item[1] for item in speech_queue)
                 
                 note_counts = Counter(denoms)
-                summary_parts = []
-                for d, count in sorted(note_counts.items(), key=lambda x: int(x[0])):
-                    if count > 1:
-                        summary_parts.append(f"{count} {d} rupee notes")
-                    else:
-                        summary_parts.append(f"one {d} rupee note")
+                summary_parts = [f"{count}x{d}" if count > 1 else f"{d}" for d, count in sorted(note_counts.items(), key=lambda x: int(x[0]))]
                 
-                speech_text = "Counted " + ", ".join(summary_parts)
+                speech_text = f"Counted {', '.join(summary_parts)}. Total {state.total}."
                 if any_suspicious:
-                    speech_text += ". Warning, some notes look suspicious."
-                speech_text += f". Running total: {state.total} rupees."
+                    speech_text += " Warning, check note."
                 
                 tts.say(speech_text)
                 speech_queue.clear()
@@ -399,13 +397,19 @@ def main():
             cv2.putText(display, f"Tracking state: {t_status}", (20, 172),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.45, t_color, 1, cv2.LINE_AA)
             
-            cv2.line(display, (20, 192), (320, 192), (60, 60, 60), 1)
+            # Voice / TTS engine info
+            voice_label = tts.engine_display
+            voice_color = (0, 230, 255) if tts.mode == "sarvam" else (150, 150, 150)
+            cv2.putText(display, f"Voice: {voice_label}", (20, 192),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.42, voice_color, 1, cv2.LINE_AA)
+            
+            cv2.line(display, (20, 207), (320, 207), (60, 60, 60), 1)
             
             # Session Receipt Counts
-            cv2.putText(display, "SESSION RECEIPT", (20, 215),
+            cv2.putText(display, "SESSION RECEIPT", (20, 230),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.5, (120, 120, 120), 1, cv2.LINE_AA)
             
-            y_offset = 245
+            y_offset = 260
             for denom in DENOMINATIONS:
                 count = state.counts[denom]
                 color = COLOR_MAP[denom]
@@ -445,12 +449,12 @@ def main():
             
             # Controls legend at bottom
             cv2.line(display, (20, 600), (320, 600), (60, 60, 60), 1)
-            cv2.putText(display, "CONTROLS HELP", (20, 618),
+            cv2.putText(display, "CONTROLS", (20, 615),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.45, (120, 120, 120), 1, cv2.LINE_AA)
-            cv2.putText(display, "M: Change Mode  |  C: Clear Receipt", (20, 638),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.4, (180, 180, 180), 1, cv2.LINE_AA)
-            cv2.putText(display, "P: Pause/Play  |  +/-: Adjust Conf", (20, 658),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.4, (180, 180, 180), 1, cv2.LINE_AA)
+            cv2.putText(display, "M:Mode C:Clear P:Pause +/-:Conf", (20, 633),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.36, (180, 180, 180), 1, cv2.LINE_AA)
+            cv2.putText(display, "G:Gender V:Engine N/B:Voice", (20, 651),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.36, (0, 230, 255), 1, cv2.LINE_AA)
             
             # Space shortcut explanation based on mode
             if mode == "single":
@@ -459,10 +463,10 @@ def main():
                 space_info = "SPACE: Commit current batch"
             else:
                 space_info = "SPACE: (Disabled in Auto mode)"
-            cv2.putText(display, space_info, (20, 678),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.4, (180, 180, 180), 1, cv2.LINE_AA)
-            cv2.putText(display, "Q / ESC: Quit counting session", (20, 698),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.4, (180, 180, 180), 1, cv2.LINE_AA)
+            cv2.putText(display, space_info, (20, 669),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.36, (180, 180, 180), 1, cv2.LINE_AA)
+            cv2.putText(display, "R:Read Total  Q/ESC:Quit", (20, 687),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.36, (180, 180, 180), 1, cv2.LINE_AA)
             
             # Render window
             cv2.imshow("INR Cash Counter", display)
@@ -495,9 +499,9 @@ def main():
                         state.add(denom)
                         if not is_genuine:
                             state.flagged_suspicious.append((denom, fake_conf))
-                            tts.say(f"Warning. Suspicious {denom} rupees note counted. Total {state.total} rupees.")
+                            tts.say(f"Warning suspicious {denom}. Total {state.total}.")
                         else:
-                            tts.say(f"{denom} rupees counted. Total {state.total} rupees.")
+                            tts.say(f"Counted {denom}. Total {state.total}.")
                         print(f"[Single] Manual counted Rs {denom} (conf={conf:.2f}) | total={state.total}")
                         
                     elif mode == "multi":
@@ -526,10 +530,10 @@ def main():
                             notes_counted = [n.denom for n in newly_committed]
                             note_counts = Counter(notes_counted)
                             summary_str = " + ".join([f"{count}x{d}" for d, count in sorted(note_counts.items(), key=lambda x: int(x[0]))])
-                            tts.say(f"Counted {len(newly_committed)} notes. Total {state.total} rupees.")
+                            tts.say(f"Counted {len(newly_committed)} notes. Total {state.total}.")
                             print(f"[Multi] Committed batch of {len(newly_committed)} notes: {summary_str} | total={state.total}")
                         else:
-                            tts.say("No new notes to count.")
+                            tts.say("No notes to count.")
                             print("[Multi] No new notes to commit.")
                 
                 # Change mode (M)
@@ -562,7 +566,33 @@ def main():
                     
                 # Speak Total (R)
                 elif key == ord("r") or key == ord("R"):
-                    tts.say(f"Running total is {state.total} rupees.")
+                    tts.say(f"Total is {state.total}.")
+                
+                # Toggle voice gender filter: Female -> Male -> All (G)
+                elif key == ord("g") or key == ord("G"):
+                    new_gender = tts.toggle_gender()
+                    v_name = tts.voice_display
+                    tts.say(f"{new_gender.title()} voices. {v_name}.")
+                    print(f"[*] Voice gender filter: {new_gender.upper()} | Voice: {v_name}")
+
+                # Toggle TTS engine: Sarvam AI <-> Offline (V)
+                elif key == ord("v") or key == ord("V"):
+                    new_mode = tts.toggle_engine()
+                    label = tts.engine_display
+                    tts.say(f"{label}.")
+                    print(f"[*] TTS engine: {label}")
+                
+                # Next Sarvam voice (N)
+                elif key == ord("n") or key == ord("N"):
+                    new_voice = tts.next_voice()
+                    tts.say(f"{new_voice}.")
+                    print(f"[*] Sarvam voice: {new_voice}")
+                
+                # Previous Sarvam voice (B)
+                elif key == ord("b") or key == ord("B"):
+                    new_voice = tts.prev_voice()
+                    tts.say(f"{new_voice}.")
+                    print(f"[*] Sarvam voice: {new_voice}")
                     
                 # Adjust confidence threshold (+ / -)
                 elif key == ord("+") or key == ord("="):

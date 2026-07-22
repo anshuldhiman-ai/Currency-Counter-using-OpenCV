@@ -41,3 +41,6 @@ crops_by_class.zip
 Thumbs.db
 .vscode/
 .idea/
+
+# Secrets (see .env.example for the expected keys)
+.env

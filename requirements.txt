@@ -17,5 +17,8 @@ pyttsx3>=2.90
 # Sarvam AI TTS (human-like Indian voices)
 requests>=2.31.0
 
+# Loads SARVAM_API_KEY from a local .env file
+python-dotenv>=1.0.0
+
 # Dataset config parsing
 pyyaml>=6.0.1,<7.0.0

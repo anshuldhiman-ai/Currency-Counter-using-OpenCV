@@ -59,6 +59,7 @@
 - **Offline speech feedback** — announces individual notes, batches, the running total, and the final session summary.
 - **Session controls** — pause tracking, reset the receipt, change mode, and hear the total without restarting.
 - **Suspicious-note flagging** — an optional visual heuristic can flag a note for manual review during manual counts.
+- **On-screen control bar** — every keyboard shortcut is also a clickable button under the camera view, so the counter is fully usable with a mouse or touch input alone.
 
 ---
 
@@ -127,6 +128,14 @@ python -m venv .venv
 pip install -r requirements.txt
 ```
 
+Sarvam AI speech needs an API key. Copy `.env.example` to `.env` and fill in
+your key (`.env` is gitignored — the app falls back to offline `pyttsx3`
+speech automatically if the key is missing):
+
+```bash
+copy .env.example .env
+```
+
 Place your trained model at `models/best.pt`, then start automatic counting:
 
 ```bash
@@ -153,6 +162,9 @@ python live_count.py --model models/best.onnx --mode auto
 ---
 
 ## ⌨️ Controls & Count Modes
+
+Every action below is available both as a keyboard shortcut and as a clickable
+button in the on-screen control bar rendered under the camera view.
 
 | Key | Action |
 |---|---|

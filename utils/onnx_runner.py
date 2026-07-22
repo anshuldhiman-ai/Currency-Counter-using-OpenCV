@@ -164,27 +164,33 @@ class ONNXRunner:
         cx, cy, w, h = boxes[:, 0], boxes[:, 1], boxes[:, 2], boxes[:, 3]
         x1 = cx - (w / 2.0)
         y1 = cy - (h / 2.0)
-        
+        x2 = cx + (w / 2.0)
+        y2 = cy + (h / 2.0)
+
         orig_h, orig_w = orig_shape
         resized_h, resized_w = resized_shape
-        
+
         # Compute scaling factors (excluding the black letterbox padding area)
         scale_x = orig_w / resized_w
         scale_y = orig_h / resized_h
-        
+
         cv_boxes = []
         cv_confs = []
         cv_class_ids = []
-        
+
         for i in range(len(boxes)):
-            # Clip coords to the actual resized image area (excluding the black padding)
+            # Clip both corners to the actual resized image area (excluding the
+            # black padding). Clipping only the top-left corner and reusing the
+            # original width/height let a box that started off-frame overshoot
+            # past its real extent once re-scaled, so clip x2/y2 the same way
+            # and derive width/height from the clipped corners.
             bx1 = max(0, min(x1[i], resized_w))
             by1 = max(0, min(y1[i], resized_h))
-            
-            # Since bx2/by2 are derived from width/height, we calculate width/height clipped
-            bw = min(w[i], resized_w - bx1)
-            bh = min(h[i], resized_h - by1)
-            
+            bx2 = max(0, min(x2[i], resized_w))
+            by2 = max(0, min(y2[i], resized_h))
+            bw = max(0, bx2 - bx1)
+            bh = max(0, by2 - by1)
+
             # Scale coordinates back to the original image scale
             ox = int(bx1 * scale_x)
             oy = int(by1 * scale_y)

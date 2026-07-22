@@ -6,6 +6,8 @@ IoU tracking -> automatic (AUTO) or manual (SINGLE/MULTI) counting -> running to
 receipt tracked and spoken aloud -> fake-note heuristic flags suspicious notes.
 
 Controls:
+    Mouse  - Click a button in the on-screen control bar to trigger any
+             action below without touching the keyboard
     M      - Cycle count modes (SINGLE -> MULTI -> AUTO)
     C      - Reset/clear current session counts
     P      - Pause/resume camera tracking
@@ -30,6 +32,7 @@ import sys
 from collections import defaultdict, Counter
 
 import cv2
+import numpy as np
 import torch
 from ultralytics import YOLO
 
@@ -61,6 +64,83 @@ COLOR_MAP = {
     "200": (81, 159, 230),    # bright orange
     "500": (137, 175, 169),   # stone grey
 }
+
+WINDOW_NAME = "INR Cash Counter"
+CAM_WIDTH = 1280
+CAM_HEIGHT = 720
+BUTTON_BAR_HEIGHT = 64
+
+# On-screen buttons mirroring every keyboard shortcut, in (label, key_code) form
+# so a click can be funnelled through the exact same key-handling logic below.
+CONTROL_BUTTONS = [
+    ("MODE", ord("m")),
+    ("CLEAR", ord("c")),
+    ("PAUSE", ord("p")),
+    ("CONF -", ord("-")),
+    ("CONF +", ord("+")),
+    ("GENDER", ord("g")),
+    ("ENGINE", ord("v")),
+    ("VOICE -", ord("b")),
+    ("VOICE +", ord("n")),
+    ("COUNT", ord(" ")),
+    ("TOTAL", ord("r")),
+    ("QUIT", 27),
+]
+
+
+def layout_buttons(specs, bar_y, bar_width, bar_height, margin=8, gap=4):
+    """Compute fixed pixel rects for each button, evenly spaced across the bar"""
+    n = len(specs)
+    usable = bar_width - 2 * margin - gap * (n - 1)
+    btn_w = usable // n
+    btn_h = bar_height - 16
+    buttons = []
+    x = margin
+    for label, code in specs:
+        rect = (x, bar_y + 8, x + btn_w, bar_y + 8 + btn_h)
+        buttons.append({"label": label, "code": code, "rect": rect})
+        x += btn_w + gap
+    return buttons
+
+
+def draw_button_bar(canvas, buttons, mouse_pos, dynamic_labels=None, active_codes=None):
+    """Render the control bar, highlighting the hovered button and any active toggle"""
+    dynamic_labels = dynamic_labels or {}
+    active_codes = active_codes or set()
+    mx, my = mouse_pos
+    for btn in buttons:
+        x1, y1, x2, y2 = btn["rect"]
+        hovered = x1 <= mx <= x2 and y1 <= my <= y2
+        label = dynamic_labels.get(btn["code"], btn["label"])
+
+        base_color = (55, 55, 55)
+        if btn["code"] in active_codes:
+            base_color = (0, 120, 80)
+        if hovered:
+            base_color = tuple(min(255, c + 45) for c in base_color)
+
+        cv2.rectangle(canvas, (x1, y1), (x2, y2), base_color, -1)
+        cv2.rectangle(canvas, (x1, y1), (x2, y2), (100, 100, 100), 1)
+
+        (tw, th), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.42, 1)
+        tx = x1 + max(2, (x2 - x1 - tw) // 2)
+        ty = y1 + (y2 - y1 + th) // 2
+        cv2.putText(canvas, label, (tx, ty), cv2.FONT_HERSHEY_SIMPLEX, 0.42,
+                    (255, 255, 255), 1, cv2.LINE_AA)
+
+
+def make_mouse_callback(buttons, pending_key, mouse_pos):
+    """Build an OpenCV mouse callback that queues a key code when a button is clicked"""
+    def on_mouse(event, x, y, flags, userdata):
+        mouse_pos[0] = (x, y)
+        if event == cv2.EVENT_LBUTTONDOWN:
+            for btn in buttons:
+                x1, y1, x2, y2 = btn["rect"]
+                if x1 <= x <= x2 and y1 <= y <= y2:
+                    pending_key[0] = btn["code"]
+                    break
+    return on_mouse
+
 
 # Global flag for graceful shutdown
 shutdown_requested = False
@@ -235,7 +315,15 @@ def main():
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
     
     frame_time = 1.0 / args.fps
-    
+
+    # On-screen control bar: buttons are laid out once (fixed pixel rects) and
+    # a click funnels its key_code through the same handling as a real keypress.
+    control_buttons = layout_buttons(CONTROL_BUTTONS, CAM_HEIGHT, CAM_WIDTH, BUTTON_BAR_HEIGHT)
+    pending_key = [None]
+    mouse_pos = [(-1, -1)]
+    cv2.namedWindow(WINDOW_NAME)
+    cv2.setMouseCallback(WINDOW_NAME, make_mouse_callback(control_buttons, pending_key, mouse_pos))
+
     # Background Thread Variables for Inference
     detection_results = {"items": [], "version": 0}
     detection_lock = threading.Lock()
@@ -467,22 +555,42 @@ def main():
                         cv2.FONT_HERSHEY_SIMPLEX, 0.36, (180, 180, 180), 1, cv2.LINE_AA)
             cv2.putText(display, "R:Read Total  Q/ESC:Quit", (20, 687),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.36, (180, 180, 180), 1, cv2.LINE_AA)
-            
-            # Render window
-            cv2.imshow("INR Cash Counter", display)
-            
+            cv2.putText(display, "Or click a button below", (20, 705),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.36, (120, 200, 255), 1, cv2.LINE_AA)
+
+            # Render window with an added control bar for mouse-driven buttons
+            canvas = np.zeros((CAM_HEIGHT + BUTTON_BAR_HEIGHT, CAM_WIDTH, 3), dtype=np.uint8)
+            canvas[:CAM_HEIGHT] = display
+
+            space_label = "COMMIT" if mode == "multi" else "COUNT"
+            dynamic_labels = {
+                ord(" "): space_label,
+                ord("p"): "RESUME" if is_paused else "PAUSE",
+                ord("m"): f"MODE:{mode.upper()}",
+            }
+            active_codes = {ord("p")} if is_paused else set()
+            draw_button_bar(canvas, control_buttons, mouse_pos[0], dynamic_labels, active_codes)
+
+            cv2.imshow(WINDOW_NAME, canvas)
+
             # Handle FPS delay
             elapsed = time.time() - frame_start
             delay = max(1, int((frame_time - elapsed) * 1000))
-            
+
             raw_key = cv2.waitKey(delay)
+            key = None
             if raw_key != -1:
                 key = raw_key & 0xFF
-                
+            if pending_key[0] is not None:
+                key = pending_key[0]
+                pending_key[0] = None
+
+            if key is not None:
+
                 # ESC or 'q'
                 if key == 27 or key == ord("q"):
                     break
-                    
+
                 # SPACE bar
                 elif key == ord(" "):
                     if mode == "single" and detections:

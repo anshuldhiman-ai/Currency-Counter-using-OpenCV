@@ -20,6 +20,9 @@ import threading
 import time
 
 import pyttsx3
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # ---------------------------------------------------------------------------
 # Windows MCI helper (native MP3 playback, no third-party libs needed)
@@ -41,7 +44,9 @@ def _mci_send(command: str) -> str:
 # ---------------------------------------------------------------------------
 # Sarvam AI configuration
 # ---------------------------------------------------------------------------
-SARVAM_API_KEY = "sk_y8ni372y_dbrAlcySsSmTIPOeT7NzGDpL"
+# Read from the environment (see .env.example) so the real key never lives in
+# source control. Falls back to offline TTS at runtime if unset.
+SARVAM_API_KEY = os.environ.get("SARVAM_API_KEY", "")
 SARVAM_TTS_URL = "https://api.sarvam.ai/text-to-speech/stream"
 
 # VERIFIED WORKING VOICES ONLY for bulbul:v3 model
@@ -282,6 +287,11 @@ class TTSEngine:
 
     def _speak_sarvam(self, text: str, voice_idx: int):
         """Call Sarvam API, save the MP3, and play it via Windows MCI."""
+        if not SARVAM_API_KEY:
+            print("[TTS] SARVAM_API_KEY not set (see .env.example) — falling back to offline.")
+            self._speak_offline_fallback(text)
+            return
+
         try:
             import requests as _requests
         except ImportError:

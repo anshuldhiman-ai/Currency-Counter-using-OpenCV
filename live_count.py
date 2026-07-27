@@ -307,12 +307,13 @@ def main():
     if not cap.isOpened():
         print(f"[-] Could not open camera {args.cam}.")
         return
-    
-    # Configure high-speed camera properties
+
+    # Configure camera properties (these are *requests* — many cameras ignore
+    # them, so we force-resize the frame to CAM_WIDTH × CAM_HEIGHT after capture)
     cap.set(cv2.CAP_PROP_FPS, args.fps)
     cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
-    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
-    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, CAM_WIDTH)
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, CAM_HEIGHT)
     
     frame_time = 1.0 / args.fps
 
@@ -350,7 +351,12 @@ def main():
             ok, frame = cap.read()
             if not ok:
                 break
-            
+
+            # Force-resize to expected dimensions (many cameras ignore
+            # CAP_PROP_FRAME_WIDTH/HEIGHT and deliver at native resolution)
+            if frame.shape[1] != CAM_WIDTH or frame.shape[0] != CAM_HEIGHT:
+                frame = cv2.resize(frame, (CAM_WIDTH, CAM_HEIGHT), interpolation=cv2.INTER_LINEAR)
+
             # Flip camera frame horizontally to act as a mirror
             frame = cv2.flip(frame, 1)
             

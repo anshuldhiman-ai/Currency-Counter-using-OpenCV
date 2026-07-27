@@ -45,24 +45,44 @@ class ONNXRunner:
         # 3. CPU Fallback
         priority_providers.append("CPUExecutionProvider")
         
+        # Build CPU-optimized session options (applied regardless of provider)
+        self.session_options = ort.SessionOptions()
+        self.session_options.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
+        self.session_options.intra_op_num_threads = 2
+        self.session_options.inter_op_num_threads = 1
+        self.session_options.execution_mode = ort.ExecutionMode.ORT_SEQUENTIAL
+        self.session_options.enable_cpu_mem_arena = True
+        # Enable all available CPU-specific optimizations
+        self.session_options.enable_cpu_mem_arena = True
+        self.session_options.enable_mem_pattern = True
+        self.session_options.enable_profiling = False
+
         self.session = None
         # Attempt to load session, falling back sequentially if initialization fails
         for i in range(len(priority_providers)):
             candidate_providers = priority_providers[i:]
             current_provider = candidate_providers[0]
             prov_name = current_provider[0] if isinstance(current_provider, tuple) else current_provider
-            
+
             print(f"[ONNXRunner] Attempting to load model with {prov_name}...")
             try:
-                self.session = ort.InferenceSession(model_path, providers=candidate_providers)
+                self.session = ort.InferenceSession(
+                    model_path,
+                    sess_options=self.session_options,
+                    providers=candidate_providers
+                )
                 print(f"[ONNXRunner] Success! ONNX Session loaded with active providers: {self.session.get_providers()}")
                 break
             except Exception as e:
                 print(f"[ONNXRunner] Warning: Failed to initialize {prov_name}. Fallback triggered. (Error: {e})")
-                
+
         if self.session is None:
             print("[ONNXRunner] Critical: All prioritized providers failed. Forcing CPU fallback.")
-            self.session = ort.InferenceSession(model_path, providers=["CPUExecutionProvider"])
+            self.session = ort.InferenceSession(
+                model_path,
+                sess_options=self.session_options,
+                providers=["CPUExecutionProvider"]
+            )
             
         # Read input metadata
         self.input_name = self.session.get_inputs()[0].name

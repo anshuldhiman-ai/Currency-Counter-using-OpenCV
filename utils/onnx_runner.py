@@ -52,8 +52,6 @@ class ONNXRunner:
         self.session_options.inter_op_num_threads = 1
         self.session_options.execution_mode = ort.ExecutionMode.ORT_SEQUENTIAL
         self.session_options.enable_cpu_mem_arena = True
-        # Enable all available CPU-specific optimizations
-        self.session_options.enable_cpu_mem_arena = True
         self.session_options.enable_mem_pattern = True
         self.session_options.enable_profiling = False
 

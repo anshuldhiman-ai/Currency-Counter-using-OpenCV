@@ -120,10 +120,9 @@ class TTSEngine:
 
     def __init__(self, mode=MODE_SARVAM, voice="priya", rate=175, volume=1.0):
         self._mode = mode
-        self._gender_filter = "female"  # "female", "male", or "all"
+        self._gender_filter = "female"
         self._voice_index = 0
-        
-        # Resolve initial voice
+
         if voice in SARVAM_VOICE_KEYS:
             self._voice_index = SARVAM_VOICE_KEYS.index(voice)
             self._gender_filter = SARVAM_VOICES[self._voice_index][2].lower()
@@ -132,37 +131,39 @@ class TTSEngine:
         self._volume = volume
         self._queue = queue.Queue()
         self._lock = threading.Lock()
-
-        # Counter for unique MCI alias names (avoids collisions)
         self._mci_counter = 0
-
-        # Temp directory for Sarvam audio files
         self._tmp_dir = tempfile.mkdtemp(prefix="inr_tts_")
 
-        # Start background worker
+        # Precompute gender-filtered index lists
+        self._female_indices = [i for i, v in enumerate(SARVAM_VOICES) if v[2].lower() == "female"]
+        self._male_indices = [i for i, v in enumerate(SARVAM_VOICES) if v[2].lower() == "male"]
+
         self._thread = threading.Thread(target=self._worker, daemon=True)
         self._thread.start()
 
-    # ── Internal Voice Filter Helper ──────────────────────────────────────────
+    # ── Internal: drain queue without accessing private fields ─────────────
+
+    def _drain_queue(self):
+        """Remove all pending items from the queue safely."""
+        try:
+            while not self._queue.empty():
+                self._queue.get_nowait()
+        except queue.Empty:
+            pass
 
     def _get_filtered_indices(self):
-        """Return indices of voices matching the active gender filter."""
         if self._gender_filter == "female":
-            return [i for i, v in enumerate(SARVAM_VOICES) if v[2].lower() == "female"]
+            return list(self._female_indices)
         elif self._gender_filter == "male":
-            return [i for i, v in enumerate(SARVAM_VOICES) if v[2].lower() == "male"]
+            return list(self._male_indices)
         return list(range(len(SARVAM_VOICES)))
 
-    # ── Public API ─────────────────────────────────────────────────────────────
+    # ── Public API ─────────────────────────────────────────────────────────
 
     def say(self, text: str, replace_pending=True):
-        """Non-blocking: queues text to be spoken. Drains stale pending items by default."""
+        """Non-blocking: queues text to be spoken."""
         if replace_pending:
-            try:
-                with self._queue.mutex:
-                    self._queue.queue.clear()
-            except Exception:
-                pass
+            self._drain_queue()
         self._queue.put(text)
 
     def stop(self):
@@ -278,25 +279,25 @@ class TTSEngine:
                 voice_idx = self._voice_index
 
             if current_mode == MODE_SARVAM:
-                self._speak_sarvam(text, voice_idx)
+                self._speak_sarvam(text, voice_idx, offline_engine)
             else:
                 offline_engine.say(text)
                 offline_engine.runAndWait()
 
     # ── Sarvam AI speech ───────────────────────────────────────────────────────
 
-    def _speak_sarvam(self, text: str, voice_idx: int):
+    def _speak_sarvam(self, text: str, voice_idx: int, fallback_engine=None):
         """Call Sarvam API, save the MP3, and play it via Windows MCI."""
         if not SARVAM_API_KEY:
             print("[TTS] SARVAM_API_KEY not set (see .env.example) — falling back to offline.")
-            self._speak_offline_fallback(text)
+            self._speak_offline_fallback(text, fallback_engine)
             return
 
         try:
             import requests as _requests
         except ImportError:
             print("[TTS] 'requests' library not installed — falling back to offline.")
-            self._speak_offline_fallback(text)
+            self._speak_offline_fallback(text, fallback_engine)
             return
 
         voice_key = SARVAM_VOICES[voice_idx][0]
@@ -325,18 +326,18 @@ class TTSEngine:
             )
         except Exception as e:
             print(f"[TTS] Sarvam API request failed: {e} — falling back to offline.")
-            self._speak_offline_fallback(text)
+            self._speak_offline_fallback(text, fallback_engine)
             return
 
         if not resp.ok:
             print(f"[TTS] Sarvam API returned HTTP {resp.status_code} — falling back.")
-            self._speak_offline_fallback(text)
+            self._speak_offline_fallback(text, fallback_engine)
             return
 
         ct = resp.headers.get("Content-Type", "")
         if "application/json" in ct:
             print("[TTS] Sarvam returned JSON error — falling back.")
-            self._speak_offline_fallback(text)
+            self._speak_offline_fallback(text, fallback_engine)
             return
 
         filepath = os.path.join(self._tmp_dir, f"tts_{int(time.time()*1000)}.mp3")
@@ -349,12 +350,12 @@ class TTSEngine:
                         total += len(chunk)
         except Exception as e:
             print(f"[TTS] Failed to save audio: {e}")
-            self._speak_offline_fallback(text)
+            self._speak_offline_fallback(text, fallback_engine)
             return
 
         if total == 0:
             print("[TTS] Empty audio from Sarvam — falling back.")
-            self._speak_offline_fallback(text)
+            self._speak_offline_fallback(text, fallback_engine)
             return
 
         self._play_mp3_mci(filepath)
@@ -387,14 +388,15 @@ class TTSEngine:
             except OSError:
                 pass
 
-    def _speak_offline_fallback(self, text: str):
-        """Emergency fallback: use pyttsx3 from within worker thread."""
+    def _speak_offline_fallback(self, text: str, engine=None):
+        """Emergency fallback: use pyttsx3, reusing the worker's engine if available."""
         try:
-            engine = pyttsx3.init()
-            engine.setProperty("rate", self._rate)
-            engine.setProperty("volume", self._volume)
-            engine.say(text)
-            engine.runAndWait()
+            eng = engine if engine is not None else pyttsx3.init()
+            if engine is None:
+                eng.setProperty("rate", self._rate)
+                eng.setProperty("volume", self._volume)
+            eng.say(text)
+            eng.runAndWait()
         except Exception as e:
             print(f"[TTS] Offline fallback error: {e}")
 

@@ -7,8 +7,8 @@ Place your trained weights here before running the app:
 
 ```
 models/
-├── best2.pt      # PyTorch YOLOv8 weights (recommended)
-└── best2.onnx    # ONNX export for NPU / GPU / CPU acceleration
+├── best.pt      # PyTorch YOLOv8 weights (recommended)
+└── best.onnx    # ONNX export for NPU / GPU / CPU acceleration
 ```
 
 ## How to get the weights
@@ -26,7 +26,7 @@ models/
    ```
 4. Export to ONNX:
    ```
-   python export_onnx.py --model models/best2.pt --imgsz 640
+   python export_onnx.py --model models/best.pt --imgsz 640
    ```
 
 **Option B — Bring an existing YOLOv8 model** trained on the 7 INR classes
@@ -35,5 +35,5 @@ models/
 ## Run
 
 ```
-python live_count.py --model models/best2.onnx --conf 0.4 --verify_time 2 --detect_every 2
+python live_count.py --model models/best.onnx --conf 0.4 --verify_time 2 --detect_every 2
 ```

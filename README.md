@@ -101,6 +101,12 @@ The counter supports `.pt` weights directly through Ultralytics and `.onnx`
 exports through ONNX Runtime. ONNX inference attempts Qualcomm QNN NPU first,
 then DirectML GPU, and uses CPU as a reliable fallback.
 
+### 4 · Refactored, maintainable codebase
+
+The main application has been split from a single 350+ line function into focused,
+reusable helpers — improving readability, testability, and making it easier to
+contribute. Thread safety, type hints, and consistent error handling are baked in.
+
 ---
 
 ## 🧰 Tech Stack
@@ -110,7 +116,7 @@ then DirectML GPU, and uses CPU as a reliable fallback.
 | **Detection** | Ultralytics YOLOv8 · PyTorch · ONNX Runtime |
 | **Vision** | OpenCV · NumPy |
 | **Tracking** | Lightweight IoU tracker implemented in Python |
-| **Feedback** | `pyttsx3` offline text-to-speech |
+| **Feedback** | `pyttsx3` offline text-to-speech · Sarvam AI cloud TTS |
 | **Training** | YOLOv8 dataset merge, class mapping, training, and ONNX export scripts |
 
 ---
@@ -173,6 +179,9 @@ button in the on-screen control bar rendered under the camera view.
 | `C` | Clear the receipt and total |
 | `P` | Pause or resume tracking |
 | `R` | Speak the running total |
+| `G` | Toggle voice gender filter (Female → Male → All) |
+| `V` | Toggle TTS engine (Sarvam AI ↔ Offline pyttsx3) |
+| `N` / `B` | Next / Previous Sarvam AI voice |
 | `+` / `-` | Increase or decrease confidence threshold |
 | `Q` / `Esc` | End session and announce the summary |
 
@@ -218,12 +227,14 @@ Currency-Counter-using-OpenCV/
 ├── requirements.txt         # Python dependencies
 ├── data/
 │   └── raw/README.md        # Dataset placement guidance
-├── models/                  # Local trained weights (ignored by Git)
+├── models/
+│   ├── README.md            # Model download / training instructions
+│   └── (your .pt or .onnx)  # Local trained weights (ignored by Git)
 └── utils/
     ├── tracker.py           # IoU tracking and stability verification
     ├── onnx_runner.py       # ONNX Runtime inference and provider fallback
     ├── fake_check.py        # Basic suspicious-note heuristic
-    └── tts_engine.py        # Offline text-to-speech wrapper
+    └── tts_engine.py        # Dual-mode TTS: offline pyttsx3 + Sarvam AI
 ```
 
 ---

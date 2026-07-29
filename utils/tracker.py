@@ -36,10 +36,12 @@ class TrackedNote:
         self.frames_lost = 0
         self.frames_active += 1
         
-        # If the denomination changes, update it if the new detection has higher confidence
-        if denom != self.denom and conf > self.conf:
-            self.denom = denom
+        # Keep the best confidence across all matching detections.
+        # Only change denomination if a different class has higher confidence.
+        if conf > self.conf:
             self.conf = conf
+            if denom != self.denom:
+                self.denom = denom
 
 
 class NoteTracker:

@@ -761,9 +761,10 @@ def main() -> None:
                 print(f"[*] Voice gender filter: {new_gender.upper()} | Voice: {v_name}")
 
             elif key in (ord("v"), ord("V")):
+                tts.toggle_engine()
                 label = tts.engine_display
                 tts.say(f"{label}.")
-                print(f"[*] TTS engine: {label}")
+                print(f"[*] TTS engine toggled to: {label}")
 
             elif key in (ord("n"), ord("N")):
                 new_voice = tts.next_voice()
